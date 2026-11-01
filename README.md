@@ -3,11 +3,16 @@
 一个用来学汇编的工具：写 C 就能看到等价的 x86-64 汇编，读汇编就能还原出伪 C，配逐行讲解、内存动画、问题检查和自动补全。
 所有计算（C 编译器、汇编器、模拟器、反编译器）都是自己实现的，不依赖任何第三方库，也不联网。
 
+> **直接下载成品**：到 [Releases](https://github.com/Ethan3-create/Assembly-Language/releases/latest) 下载 `asm-studio-v1.0.0-win64.exe`（86.5 MB），双击就能用，不需要装 Node.js。
+> 下载后可以改名为 `汇编学习台.exe`，本文下面都按这个名字写。
+
 ---
 
 ## 一、怎么用
 
 ### 方式 1：双击 exe（推荐）
+
+从 [Releases](https://github.com/Ethan3-create/Assembly-Language/releases/latest) 下载 `asm-studio-v1.0.0-win64.exe`，或者自己打包（见第五部分）后得到：
 
 ```
 dist\汇编学习台.exe
