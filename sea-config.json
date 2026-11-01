@@ -1,0 +1,21 @@
+{
+  "main": "build/bundle.js",
+  "output": "build/sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
+  "useSnapshot": false,
+  "useCodeCache": false,
+  "assets": {
+    "index.html": "index.html",
+    "css/app.css": "css/app.css",
+    "js/data.js": "js/data.js",
+    "js/vm.js": "js/vm.js",
+    "js/c2asm.js": "js/c2asm.js",
+    "js/decompile.js": "js/decompile.js",
+    "js/diagnose.js": "js/diagnose.js",
+    "js/analyze.js": "js/analyze.js",
+    "js/memview.js": "js/memview.js",
+    "js/ai.js": "js/ai.js",
+    "js/app.js": "js/app.js",
+    "js/api.js": "js/api.js"
+  }
+}

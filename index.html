@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汇编学习台 · C ⇄ x86-64 双向对照</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white'%3E%E2%87%84%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">⇄</span>
+    <div>
+      <div class="t1">汇编学习台</div>
+      <div class="t2">C 与 x86-64 汇编双向对照 · 逐行解析 · 内存动画</div>
+    </div>
+  </div>
+
+  <div class="mode-switch" id="modeSwitch">
+    <button class="mode-btn active" data-mode="c2asm">C → 汇编</button>
+    <button class="mode-btn" data-mode="asm2c">汇编 → C</button>
+  </div>
+
+  <div class="actions">
+    <select id="exampleSelect" title="载入示例"><option value="">载入示例…</option></select>
+    <button id="btnCompile" class="btn primary">编译并加载</button>
+    <button id="btnReset" class="btn">重置</button>
+    <button id="btnAiToggle" class="btn" title="打开 AI 代码解读栏">AI 解读</button>
+    <button id="btnHelp" class="btn ghost" title="使用说明">?</button>
+  </div>
+</header>
+
+<main class="workspace">
+
+  <!-- 左（大）：x86-64 汇编 -->
+  <section class="pane" id="paneAsm">
+    <div class="pane-head">
+      <span class="dot" style="background:#c2410c"></span>
+      <span class="pane-title" id="asmTitle">x86-64 汇编（Intel 语法）</span>
+      <span class="pane-hint" id="asmHint">行末按回车出补全</span>
+      <span class="grow"></span>
+      <span class="badge" id="asmBadge">未加载</span>
+    </div>
+    <div class="editor" id="asmEditor">
+      <div class="gutter" id="asmGutter"></div>
+      <div class="code-wrap">
+        <pre class="hl" id="asmHl"></pre>
+        <div class="line-active" id="asmActiveLine"></div>
+        <textarea id="asmInput" spellcheck="false" wrap="off"></textarea>
+      </div>
+      <div class="autocomplete" id="acBoxAsm"></div>
+    </div>
+    <div class="pane-foot" id="asmFoot">
+      <span class="mnemonic-tip" id="mnemonicTip">把光标放在某条指令上，这里会显示它的含义</span>
+    </div>
+  </section>
+
+  <!-- 中：C 源码 / 反编译结果 -->
+  <section class="pane" id="paneLeft">
+    <div class="pane-head">
+      <span class="dot" style="background:#2563eb"></span>
+      <span class="pane-title" id="leftTitle">C 源代码</span>
+      <span class="pane-hint" id="leftHint">支持指针 / 结构体 / 浮点数 / 自定义函数</span>
+      <span class="grow"></span>
+      <span class="badge" id="engineBadge" title="编译在哪里完成">本地</span>
+    </div>
+    <div class="editor" id="leftEditor">
+      <div class="gutter" id="leftGutter"></div>
+      <div class="code-wrap">
+        <pre class="hl" id="leftHl"></pre>
+        <div class="line-active" id="leftActiveLine"></div>
+        <textarea id="leftInput" spellcheck="false" wrap="off"></textarea>
+      </div>
+      <div class="autocomplete" id="acBox"></div>
+    </div>
+    <div class="pane-foot" id="leftFoot">
+      <span class="kbd-hint">Tab 缩进</span>
+      <span class="kbd-hint">点击左侧汇编行可定位分析</span>
+    </div>
+  </section>
+
+  <!-- 右：分析 -->
+  <section class="pane" id="paneRight">
+    <div class="tabs" id="analysisTabs">
+      <button class="tab active" data-tab="line">逐行分析</button>
+      <button class="tab" data-tab="summary">总体分析</button>
+      <button class="tab" data-tab="doc">指令速查</button>
+      <button class="tab" data-tab="diag" id="tabDiag">问题 <span class="tab-count" id="diagCount">0</span></button>
+    </div>
+    <div class="tab-body" id="panelLine"></div>
+    <div class="tab-body hidden" id="panelSummary"></div>
+    <div class="tab-body hidden" id="panelDiag"></div>
+    <div class="tab-body hidden" id="panelDoc">
+      <div class="doc-search">
+        <input id="docSearch" placeholder="搜索指令 / 中文名，如 mov、跳转、浮点、栈">
+      </div>
+      <div class="doc-list" id="docList"></div>
+    </div>
+  </section>
+
+  <!-- 右二：AI 代码解读（独立分析栏） -->
+  <section class="pane ai-pane" id="paneAI">
+    <div class="pane-head">
+      <span class="dot" style="background:#7c3aed"></span>
+      <span class="pane-title">AI 代码解读</span>
+      <span class="pane-hint" id="aiEngineTag">本地引擎</span>
+      <span class="grow"></span>
+      <button class="btn small" id="btnAiDeep" title="接入大模型后可用">AI 深度分析</button>
+      <button class="btn small ghost" id="btnAiCfg" title="模型设置">⚙</button>
+      <button class="btn small ghost ai-close" id="btnAiClose" title="收起">✕</button>
+    </div>
+    <div class="ai-body" id="aiBody"></div>
+    <div class="pane-foot">
+      <span class="kbd-hint" id="aiFoot">离线解读：直接读 AST 与运行结果，不联网</span>
+    </div>
+  </section>
+</main>
+
+<!-- 底部：内存可视化 -->
+<section class="stage" id="stage">
+  <div class="stage-head">
+    <div class="stage-title">
+      <span class="dot" style="background:#0e7490"></span>
+      内存可视化
+      <span class="stage-sub" id="stageCaption">点"单步"看指令怎么改内存和寄存器</span>
+    </div>
+    <div class="stage-controls">
+      <button id="btnPrev" class="btn small" title="回到上一步">◀ 上一步</button>
+      <button id="btnStep" class="btn small primary" title="执行一条指令">单步 ▶</button>
+      <button id="btnPlay" class="btn small" title="连续执行">▶ 连续执行</button>
+      <label class="speed">速度<input type="range" id="speed" min="80" max="900" value="640" step="20"></label>
+      <span class="step-count" id="stepCount">0 步</span>
+    </div>
+  </div>
+  <div class="stage-body">
+    <svg id="memSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="console-wrap">
+      <div class="console-title">程序输出<span id="haltInfo"></span></div>
+      <pre class="console" id="console">（还没有运行）</pre>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal hidden" id="helpModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>怎么用这个工具</h3>
+      <button class="btn ghost" id="btnCloseHelp">✕</button>
+    </div>
+    <div class="modal-body">
+      <h4>1. 两种方向</h4>
+      <p><b>C → 汇编</b>：在左边写 C 代码，点「编译并加载」，中间会生成与之等价的 x86-64 汇编（未优化风格，和 GCC -O0 的结构一致）。生成的汇编可以直接改，改完自动重新分析。</p>
+      <p><b>汇编 → C</b>：直接在中间写汇编（或粘贴老师给的代码），左边会实时给出还原出来的伪 C 代码，右边给出逐行解释与整体分析。</p>
+      <h4>2. 自动补全怎么用</h4>
+      <p>在<b>汇编框</b>里把光标放到某一行末尾，<b>按回车</b>就会弹出补全，给的是<b>能直接用的整行写法</b>（不只是指令名），例如 <code>mov eax, DWORD PTR [rbp-4]</code>、<code>addsd xmm0, QWORD PTR [rbp-8]</code>。用 ↑ ↓ 选，回车或 Tab 确认，Esc 关掉；也可以随时按 <b>Ctrl + 空格</b> 手动唤出。已经打了操作数时，补的是寄存器、内存写法或代码里已有的标签。</p>
+      <p><b>C 框</b>只补 C 自己的东西（关键字、printf/puts/putchar/exit 的完整调用写法、for/if/while 骨架、已声明的变量），不会插入任何汇编。</p>
+      <h4>3. 问题面板（报错提示）</h4>
+      <p>右边「问题」标签页会把所有毛病分级列出来：<b>错误</b>（改不了就跑不了）、<b>警告</b>（很可能写错了）、<b>提示</b>（值得注意）。每条都带行号、出问题的代码片段和"怎么改"的建议，<b>点一下就能跳到那一行</b>，出问题的行号还会标红。检查内容包括：指令拼写、操作数个数、内存宽度与寄存器是否匹配、<code>mov</code> 内存→内存、除以 0、<code>[rbp+8]</code>（返回地址）、栈指针是否平衡、<code>call</code> 前 rsp 是否 16 字节对齐、变量声明了没用等。</p>
+      <h4>4. 逐行分析</h4>
+      <p>点中间任意一行汇编，右侧显示这一行在做什么、操作了哪块内存、标志位怎么变；同时底部内存视图会"执行到这一行"，黄色箭头就是这一行搬运数据的路径。</p>
+      <h4>5. 单步与动画</h4>
+      <p>底部「单步」每按一次执行一条指令，寄存器和栈内存的值会实时更新，橙色箭头表示数据的流向（内存→寄存器 是读，寄存器→内存 是写）。也可以点「连续执行」自动跑完。</p>
+      <h4>6. AI 代码解读栏</h4>
+      <p>最右边的「AI 代码解读」是一块独立分析栏（窄屏下点顶栏「AI 解读」滑出）。它默认用<b>本地分析引擎</b>：直接读语法树、指令流和真实运行结果，生成"这段代码在做什么"的说明、各变量最终的值、程序输出和需要注意的点，不需要联网。</p>
+      <p>如果填了 OpenAI 兼容接口（右上齿轮），还能点「AI 深度分析」让大模型再讲一遍。密钥只存在本机浏览器里。</p>
+      <h4>7. 支持范围</h4>
+      <p><b>C 语言</b>：int / long / short / char / float / double / void，以及 <b>unsigned / signed</b> 前缀（unsigned 的比较、除法、右移都按无符号语义生成）；指针 T*、数组 T[N]、struct 结构体；if-else / while / for / do-while / break / continue / return；算术、比较、逻辑、位运算、三目 ?:、复合赋值、下标、成员 . 与 ->、类型转换、sizeof；以及<b>自定义函数</b>（整型/指针参数最多 6 个，浮点参数最多 8 个）。</p>
+      <p><b>内置函数</b>：printf（支持 %d %i %u %s %c %x %X %o %p %ld %f %.2f %e %E %g %G 以及宽度、精度、%-5d、%05d、%%；参数个数不限，超过 5 个整数或 8 个浮点会自动按约定走栈传递）、puts、putchar、exit。</p>
+      <p><b>汇编指令</b>（共 97 条，点任意一行都能看到讲解）：数据传送 mov / movzx / movsx / movsxd / lea / xchg / movd / movq / movaps / movups、栈 push / pop、算术 add / sub / adc / sbb / inc / dec / imul / idiv / div / neg / cdq / cqo / cdqe / cltq / cwd / cqto、逻辑 and / or / xor / not / cmp / test、移位 shl / sal / shr / sar、控制流 jmp / jcc / setcc / cmovcc / call / ret / leave / nop / hlt、浮点 SSE movsd / movss / addsd / subsd / mulsd / divsd / addss / subss / mulss / divss / sqrtsd / ucomisd / comisd / ucomiss / comiss / cvtsi2sd / cvtsi2ss / cvttsd2si / cvttss2si / cvtsd2ss / cvtss2sd / xorpd / xorps / pxor。</p>
+      <p><b>语法</b>：Intel 语法，支持 <code>QWORD PTR [rbp-8]</code>、<code>[rbp+rax*4+8]</code>、<code>.LC0</code> 标签，以及 <code>.section .rodata</code> + <code>.string</code> / <code>.quad</code> 数据段。</p>
+      <p><b>其它能力</b>：全局变量（带初值，放 <code>.data</code> 段）、switch / case / default、do-while、三目运算、结构体数组、二维数组、char 字符串数组。</p>
+      <p class="dim">这是一个教学模拟器：地址、寄存器宽度、标志位、IEEE-754 浮点都按真实 x86-64 规则计算，但不做真实的系统调用与内存保护。暂不支持：goto、枚举、联合体、函数指针、结构体传值（请传指针）。</p>
+      <h4>8. 独立运行 / 分享给他人</h4>
+      <p><b>方式一（推荐）</b>：双击 <code>dist\汇编学习台.exe</code>，会开一个独立窗口，不需要装 Node、不需要联网。<b>不会弹黑色命令行窗口</b>；万一启动不了会弹系统提示框，并把细节写进同目录的 <code>asm-studio-error.log</code>。整个程序（含后端接口）都在这一个 exe 里，关掉窗口服务一起退出。</p>
+      <p><b>方式二</b>：<code>汇编学习台.exe --host 0.0.0.0 --port 8080 --no-window</code>，让同一个局域网里的同事用浏览器打开 <code>http://你的IP:8080</code>。</p>
+      <p>页面由后端托管时，编译会走服务端接口（<code>/api/compile</code>、<code>/api/decompile</code>、<code>/api/run</code>、<code>/api/check</code>），右上角显示"服务端"；直接双击 <code>index.html</code> 打开则是纯离线模式，所有计算都在浏览器里完成，功能完全一样。</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="aiModal">
+  <div class="modal-box narrow">
+    <div class="modal-head">
+      <h3>接入大模型（可选）</h3>
+      <button class="btn ghost" id="btnCloseAiCfg">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>本地分析引擎<b>不需要任何配置</b>。想用大模型做更细的讲解时，填一个 <b>OpenAI 兼容</b>接口即可（OpenAI、DeepSeek、通义、本地 Ollama 的 /v1 都行）。</p>
+      <label class="field"><span>Base URL</span><input id="aiEndpoint" placeholder="https://api.openai.com/v1" spellcheck="false"></label>
+      <label class="field"><span>API Key</span><input id="aiKey" type="password" placeholder="sk-…" spellcheck="false"></label>
+      <label class="field"><span>模型名</span><input id="aiModel" placeholder="gpt-4o-mini" spellcheck="false"></label>
+      <p class="dim">密钥只保存在本机浏览器的 localStorage，本工具不会把它发到别处。部分服务商不允许浏览器直连（CORS），若提示网络错误，请换用支持跨域的服务或本地 Ollama。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="btnAiCfgClear">清除配置</button>
+      <button class="btn primary" id="btnAiCfgSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/data.js"></script>
+<script src="js/vm.js"></script>
+<script src="js/c2asm.js"></script>
+<script src="js/decompile.js"></script>
+<script src="js/diagnose.js"></script>
+<script src="js/analyze.js"></script>
+<script src="js/memview.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
